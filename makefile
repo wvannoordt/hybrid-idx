@@ -1,5 +1,5 @@
 EXE := program
-NUMPROCS := 6
+NUMPROCS := 1
 
 main: setup cpuKernel gpuKernel
 	mpicxx -I${PTL}/include -I./src -I/usr/local/cuda/include -c src/main.cc -o obj/main.o
@@ -9,6 +9,7 @@ run: main
 	mpirun -np ${NUMPROCS} ./${EXE}
 
 cpuKernel:
+	mpicxx -I${PTL}/include -I./src -I/usr/local/cuda/include -c src/Glob.cpp -o obj/Glob.o
 	mpicxx -I${PTL}/include -I./src -I/usr/local/cuda/include -c src/cpuKernel.cpp -o obj/cpuKernel.o
 
 gpuKernel:

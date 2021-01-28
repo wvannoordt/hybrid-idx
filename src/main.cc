@@ -8,7 +8,7 @@
 #include "cuda_device_runtime_api.h"
 #include "cuda_runtime_api.h"
 #include <cuda_runtime.h>
-
+#include "Glob.h"
 InputClass input;
 
 int main(int argc, char** argv)
@@ -29,6 +29,7 @@ int main(int argc, char** argv)
     
     ptree.Read("input.ptl");
     ptree.StrictParse();
+    mypenoG = mypeno;
     for (int i = 0; i < DIM; i++)
     {
         input.bounds[2*i] = boundsTmp[2*i];
@@ -40,14 +41,15 @@ int main(int argc, char** argv)
     
     size_t blockSize = 1;
     for (int i = 0; i < DIM; i++) blockSize*=(2*input.nguard + input.nxb[i]);
-    size_t totalSize = sizeof(double) * blockSize * (2 + DIM);
+    size_t totalSize = sizeof(double) * blockSize * (2 + DIM) * input.lnblocks;
     if (mypeno == 0) std::cout << totalSize << " (bytes)" << std::endl;
+    if (mypeno == 0) std::cout << totalSize/sizeof(double) << " (elements)" << std::endl;
     double* cpuFlow = (double*)malloc(totalSize);
     double* gpuFlow;
     cudaMalloc(&gpuFlow, totalSize);
     
     TestFunctionsCpu(cpuFlow, input);
-    TestFunctionsCpu(gpuFlow, input);
+    TestFunctionsGpu(gpuFlow, input);
     
     MPI_Barrier(MPI_COMM_WORLD);
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;

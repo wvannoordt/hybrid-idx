@@ -11,6 +11,6 @@
 #define IS3D 0
 #endif
 
-#define THREAD_BLOCK_SIZE 16
+#define BLOCK_SIZE 8
 
 #endif

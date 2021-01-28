@@ -1,5 +1,5 @@
 centOrder = 2
-nxb       = [64, 64, 64]
-lnblocks  = 100
+nxb       = [32, 32, 32]
+lnblocks  = 10
 nguard    = 4
 numSteps  = 10000
