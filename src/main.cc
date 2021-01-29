@@ -9,6 +9,8 @@
 #include "cuda_runtime_api.h"
 #include <cuda_runtime.h>
 #include "Glob.h"
+#include "CuErr.h"
+
 InputClass input;
 
 int main(int argc, char** argv)
@@ -45,16 +47,16 @@ int main(int argc, char** argv)
     if (mypeno == 0) std::cout << totalSize << " (bytes)" << std::endl;
     if (mypeno == 0) std::cout << totalSize/sizeof(double) << " (elements)" << std::endl;
     double* cpuFlow = (double*)malloc(totalSize);
-    double* gpuFlow;
-    cudaMalloc(&gpuFlow, totalSize);
+    double* gpuFlow = 0;
+    CuCheck(cudaMalloc((void**)(&gpuFlow), totalSize));
     
     TestFunctionsCpu(cpuFlow, input);
     TestFunctionsGpu(gpuFlow, input);
     
     MPI_Barrier(MPI_COMM_WORLD);
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
-    free (cpuFlow);
-    cudaFree(gpuFlow);
+    free(cpuFlow);
+    CuCheck(cudaFree(gpuFlow));
     MPI_Finalize();
     
 }

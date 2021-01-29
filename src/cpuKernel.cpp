@@ -32,7 +32,9 @@ void TestFunctionsCpu(double* flow, const InputClass& input)
                     flow[bidx(1, i, j, k, lb, input)] = 0.0;
                     flow[bidx(2, i, j, k, lb, input)] = 0.0;
                     flow[bidx(3, i, j, k, lb, input)] = 0.0;
+#if(IS3D)
                     flow[bidx(4, i, j, k, lb, input)] = 0.0;
+#endif
                 }
             }
         }

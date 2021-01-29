@@ -1,5 +1,5 @@
 EXE := program
-NUMPROCS := 1
+NUMPROCS := 5
 
 main: setup cpuKernel gpuKernel
 	mpicxx -I${PTL}/include -I./src -I/usr/local/cuda/include -c src/main.cc -o obj/main.o
