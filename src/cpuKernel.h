@@ -3,6 +3,6 @@
 #include "InputClass.h"
 #include "Config.h"
 #include "Glob.h"
-void TestFunctionsCpu(double* flow, const InputClass& input);
-
+void InitCpu(double* flow, const InputClass& input);
+void OutputCpu(double* flow, const InputClass& input, int lb);
 #endif

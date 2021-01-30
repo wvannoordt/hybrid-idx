@@ -2,7 +2,7 @@
 #include "Idx.h"
 #include "CuErr.h"
 #include <iostream>
-__global__ void K_TestFunctionsGpu(double* flow, const InputClass input, const int lb)
+__global__ void K_Init(double* flow, const InputClass input, const int lb)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x - input.nguard;
     int j = threadIdx.y + blockIdx.y*blockDim.y - input.nguard;
@@ -23,24 +23,24 @@ __global__ void K_TestFunctionsGpu(double* flow, const InputClass input, const i
 
     if (i < (input.nxb[0]+input.nguard) && j < (input.nxb[1]+input.nguard) && k < (input.nxb[2]+input.nguard))
     {
-        xyz[0] = input.bounds[0] + (i - input.nguard + 0.5)*dx[0];
-        xyz[1] = input.bounds[2] + (j - input.nguard + 0.5)*dx[1];
+        xyz[0] = input.bounds[0] + (i + 0.5)*dx[0];
+        xyz[1] = input.bounds[2] + (j + 0.5)*dx[1];
 #if(IS3D)
-        xyz[2] = input.bounds[4] + (k - input.nguard + 0.5)*dx[2];
+        xyz[2] = input.bounds[4] + (k + 0.5)*dx[2];
 #else
         xyz[2] = 0.0;
 #endif
-        flow[bidx(0, i, j, k, lb, input)] = 0.0;
-        flow[bidx(1, i, j, k, lb, input)] = 0.0;
-        flow[bidx(2, i, j, k, lb, input)] = 0.0;
-        flow[bidx(3, i, j, k, lb, input)] = 0.0;
+        flow[bidx(0, i, j, k, lb, input)] = xyz[0];
+        flow[bidx(1, i, j, k, lb, input)] = xyz[1];
+        flow[bidx(2, i, j, k, lb, input)] = xyz[2];
+        flow[bidx(3, i, j, k, lb, input)] = xyz[0];
 #if(IS3D)
-        flow[bidx(4, i, j, k, lb, input)] = 0.0;
+        flow[bidx(4, i, j, k, lb, input)] = xyz[1];
 #endif
     }
 }
 
-void TestFunctionsGpu(double* flow, const InputClass& input)
+void InitGpu(double* flow, const InputClass& input)
 {
     //Global memory:            7.907288 GB
     //Shared memory per block:  48.000000 KB
@@ -65,8 +65,9 @@ void TestFunctionsGpu(double* flow, const InputClass& input)
     gridConf.z = (numcells[2] + BLOCK_SIZE - 1)/BLOCK_SIZE;
 #endif
 
-    if (mypenoG==0)
+    if (mypenoG==0 && !hasPrintedGp)
     {
+        hasPrintedGp = true;
         std::cout << "GP Config:\nblock: " << blockConf.x << " x " << blockConf.y;
         if (IS3D) std::cout << " x " << blockConf.z;
         std::cout << "\ngrid:  " << gridConf.x << " x " << gridConf.y;
@@ -76,7 +77,7 @@ void TestFunctionsGpu(double* flow, const InputClass& input)
     
     for (int lb = 0; lb < input.lnblocks; lb++)
     {
-        K_TestFunctionsGpu<<<gridConf, blockConf>>>(flow, input, lb);
+        K_Init<<<gridConf, blockConf>>>(flow, input, lb);
         CuCheck(cudaPeekAtLastError());
     }
     CuCheck(cudaDeviceSynchronize());

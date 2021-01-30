@@ -10,6 +10,7 @@
 #include <cuda_runtime.h>
 #include "Glob.h"
 #include "CuErr.h"
+#include <chrono>
 
 InputClass input;
 
@@ -32,6 +33,7 @@ int main(int argc, char** argv)
     ptree.Read("input.ptl");
     ptree.StrictParse();
     mypenoG = mypeno;
+    hasPrintedGp = false;
     for (int i = 0; i < DIM; i++)
     {
         input.bounds[2*i] = boundsTmp[2*i];
@@ -50,10 +52,29 @@ int main(int argc, char** argv)
     double* gpuFlow = 0;
     CuCheck(cudaMalloc((void**)(&gpuFlow), totalSize));
     
-    TestFunctionsCpu(cpuFlow, input);
-    TestFunctionsGpu(gpuFlow, input);
+    InitCpu(cpuFlow, input);
+    InitGpu(gpuFlow, input);
+    int numZer = std::to_string(input.numSteps-1).length();
+    double elapsedTime = 0.0;
+    for (int nt = 0; nt < input.numSteps; nt++)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        InitGpu(gpuFlow, input);
+        MPI_Barrier(MPI_COMM_WORLD);
+        
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        double timeMS = 1000*elapsed.count();
+        elapsedTime += timeMS;
+        if (mypenoG == 0) std::cout << ("nt: " + zfill(nt, numZer) + "/" + zfill(input.numSteps-1, numZer) + " time: " + std::to_string(timeMS) + " ms") << std::endl;
+    }
     
     MPI_Barrier(MPI_COMM_WORLD);
+    if (mypenoG == 0)
+    {
+        std::cout << "Average timestep: " + std::to_string(elapsedTime/input.numSteps) + " ms" << std::endl;
+    }
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
     free(cpuFlow);
     CuCheck(cudaFree(gpuFlow));

@@ -18,7 +18,9 @@ gpuKernel:
 
 setup:
 	mkdir -p obj
+	mkdir -p output
 
 clean:
 	rm -f ${EXE}
 	rm -rf obj
+	rm -rf output
