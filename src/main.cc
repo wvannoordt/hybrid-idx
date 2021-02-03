@@ -60,7 +60,8 @@ int main(int argc, char** argv)
     {
         auto start = std::chrono::high_resolution_clock::now();
         
-        InitGpu(gpuFlow, input);
+        // DivGpu(gpuFlow, input);
+        ConvCpu(cpuFlow, input);
         MPI_Barrier(MPI_COMM_WORLD);
         
         auto finish = std::chrono::high_resolution_clock::now();

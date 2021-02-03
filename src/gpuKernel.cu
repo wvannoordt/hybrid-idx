@@ -82,3 +82,40 @@ void InitGpu(double* flow, const InputClass& input)
     }
     CuCheck(cudaDeviceSynchronize());
 }
+
+void ConvGpu(double* flow, const InputClass& input, int lb)
+{
+    dim3 blockConf;
+    blockConf.x = BLOCK_SIZE;
+    blockConf.y = BLOCK_SIZE;
+#if(IS3D)
+    blockConf.z = BLOCK_SIZE;
+#endif
+    dim3 gridConf;
+    int numcells[DIM];
+    for (int i = 0; i < DIM; i++) {numcells[i] = input.nxb[i];}
+    gridConf.x = (numcells[0] + BLOCK_SIZE - 1)/BLOCK_SIZE;
+    gridConf.y = (numcells[1] + BLOCK_SIZE - 1)/BLOCK_SIZE;
+#if(IS3D)
+    gridConf.z = (numcells[2] + BLOCK_SIZE - 1)/BLOCK_SIZE;
+#endif
+
+    if (mypenoG==0 && !hasPrintedGp)
+    {
+        hasPrintedGp = true;
+        std::cout << "GP Config:\nblock: " << blockConf.x << " x " << blockConf.y;
+        if (IS3D) std::cout << " x " << blockConf.z;
+        std::cout << "\ngrid:  " << gridConf.x << " x " << gridConf.y;
+        if (IS3D) std::cout << " x " << gridConf.z;
+        std::cout << std::endl;
+    }
+    
+    for (int lb = 0; lb < input.lnblocks; lb++)
+    {
+        // K_Init<<<gridConf, blockConf>>>(flow, input, lb);
+        CuCheck(cudaPeekAtLastError());
+    }
+    CuCheck(cudaDeviceSynchronize());
+
+
+}

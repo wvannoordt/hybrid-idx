@@ -44,6 +44,27 @@ void InitCpu(double* flow, const InputClass& input)
     }
 }
 
+void ConvCpu(double* flow, const InputClass& input, int lb)
+{
+    
+    int imin = 0;
+    int imax = input.nxb[0];
+    int jmin = 0;
+    int jmax = input.nxb[1];
+    int kmin = 0;
+    int kmax = IS3D*input.nxb[1+IS3D] + (1-IS3D);
+    for (int k = kmin; k < kmax; k++)
+    {
+        for (int j = jmin; j < jmax; j++)
+        {
+            for (int i = imin; i < imax; i++)
+            {
+                
+            }
+        }
+    }
+}
+
 void OutputCpu(double* flow, const InputClass& input, int lb)
 {
     int imin = -input.nguard;
