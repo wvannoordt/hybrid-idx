@@ -44,7 +44,7 @@ void InitCpu(double* flow, const InputClass& input)
     }
 }
 
-void ConvCpu(double* flow, const InputClass& input, int lb)
+void ConvCpu(double* flow, const InputClass& input)
 {
     
     int imin = 0;

@@ -5,5 +5,5 @@
 #include "Glob.h"
 void InitCpu(double* flow, const InputClass& input);
 void OutputCpu(double* flow, const InputClass& input, int lb);
-void ConvCpu(double* flow, const InputClass& input, int lb);
+void ConvCpu(double* flow, const InputClass& input);
 #endif
