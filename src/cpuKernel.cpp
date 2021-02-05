@@ -44,31 +44,124 @@ void InitCpu(double* flow, const InputClass& input)
     }
 }
 
+#define stencilIdx(v,j) ((v)+(5+DIM)*(j))
+
+#define f_DivSplit(q,j,l,v1)         (0.500*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))]))
+#define fg_QuadSplit(q,j,l,v1,v2)    (0.250*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))]))
+#define fg_CubeSplit(q,j,l,v1,v2,v3) (0.125*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))])*(q[stencilIdx((v3),(j))] + q[stencilIdx((v3),(j)+(l))]))
+#define fg_DivSplit(q,j,l,v1,v2)     (0.500*(q[stencilIdx((v1),(j)+(l))]*q[stencilIdx((v2),(j))]) + (q[stencilIdx((v1),(j))]*q[stencilIdx((v2),(j)+(l))]))
+
 void ConvCpu(double* flow, const InputClass& input)
 {
-    double centerCoef[4];
-    // p, T, u, v, w
-    double stencilData[9*(2+DIM)];
-    int imin = 0;
-    int imax = input.nxb[0];
-    int jmin = 0;
-    int jmax = input.nxb[1];
-    int kmin = 0;
-    int kmax = IS3D*input.nxb[1+IS3D] + (1-IS3D);
-    int stencilWid = input.centOrder/2;
-    int dijk[3];
-    double err = 0.0;
-    for (int idir = 0; idir < DIM; idir ++)
+  double centerCoef[4] = {0.0};
+  switch (input.centOrder)
     {
-        for (int d = 0; d < DIM; d++) dijk[d] = 0;
-        dijk[idir] = 1;
-        for (int k = kmin; k < kmax; k++)
+    case 2: {centerCoef[0] = 1.0/2.0; break;}
+    case 4: {centerCoef[0] = 2.0/3.0; centerCoef[1] = -1.0/12.0; break;}
+    case 6: {centerCoef[0] = 3.0/4.0; centerCoef[1] = -3.0/20.0; centerCoef[2] = 1.0/60.0 ;break;}
+    case 8: {centerCoef[0] = 4.0/5.0; centerCoef[1] = -1.0/5.0 ; centerCoef[2] = 4.0/105; centerCoef[3] = -1.0/280.0; break;}
+    default: {std::cout << "Bad central scheme order." << std::endl; abort();}
+    }      
+  
+  // p, T, u, v, w
+  int imin = 0;
+  int imax = input.nxb[0];
+  int jmin = 0;
+  int jmax = input.nxb[1];
+  int kmin = 0;
+  int kmax = IS3D*input.nxb[1+IS3D] + (1-IS3D);
+  int stencilWid = input.centOrder/2;
+  int dijk[3];
+  double err = 0.0;
+
+  double invdx[DIM] = {0};
+
+  for (int lb = 0; lb < input.lnblocks; lb++)
+    {        
+      for (int i = 0; i < DIM; i++)
         {
-            for (int j = jmin; j < jmax; j++)
+          invdx[i] = (double) (input.nxb[i])/(input.bounds[2*i+1] - input.bounds[2*i]);
+        }
+
+      for (int idir = 0; idir < DIM; idir ++)
+        {
+          for (int d = 0; d < DIM; d++) dijk[d] = 0;
+          dijk[idir] = 1;
+          for (int k = kmin; k < kmax; k++)
             {
-                for (int i = imin; i < imax; i++)
+              for (int j = jmin; j < jmax; j++)
                 {
-                    for (int n = 0; n < stencilWid; n++) stencilData[n] = 0.0;
+                  for (int i = imin; i < imax; i++)
+                    {
+                      double stencilData[9*(5+DIM)]; //ie,ke,rho,P,T,u,v,w
+                      double rhs[2+DIM] = {0.0};
+                      // fluxes
+                      double C[2]     = {0.0};
+                      double M[DIM*2] = {0.0};
+                      double PGRAD[2] = {0.0};
+                      double KE[2]    = {0.0};
+                      double IE[2]    = {0.0};
+                      double PDIFF[2] = {0.0};
+
+                      for (int n = 0; n < input.centOrder + 1; n++)
+                        {
+                          for (int v = 3; v < (5+DIM); v++)
+                            {
+                              stencilData[stencilIdx(v,n)] = flow[bidx(v,i+dijk[0]*n-input.nguard,j+dijk[1]*n-input.nguard,k+dijk[2]*n-input.nguard,lb,input)];                              
+                            }
+                          // IE = P/(rho*(gamma - 1))
+                          stencilData[stencilIdx(0,n)] = stencilData[stencilIdx(3,n)]/(stencilData[stencilIdx(2,n)]*(input.gamma - 1.0));
+                          stencilData[stencilIdx(1,n)] = 0.0;
+
+                          // Not needed per se starts
+                          for (int vel_comp = 0; vel_comp < DIM; vel_comp ++)
+                            {
+                              stencilData[stencilIdx(1,n)] += 0.5*stencilData[stencilIdx(5+vel_comp,n)]*stencilData[stencilIdx(5+vel_comp,n)];
+                            }
+                          // Not needed per se ends
+                          
+                          stencilData[stencilIdx(2,n)] = stencilData[stencilIdx(3,n)]/(input.Rgas*stencilData[stencilIdx(4,n)]);
+                        }
+                      // Mass conservation                              
+                      for (int l = 1; l <= stencilWid; l++)
+                        {
+                          int jf = stencilWid;
+                          for (int m = 0; m <= (l-1); m++)
+                            {
+                              C[1] += 2.0*centerCoef[l]*fg_QuadSplit(stencilData,jf-m, l,2,5+idir);
+                              C[0] += 2.0*centerCoef[l]*fg_QuadSplit(stencilData,jf+m,-l,2,5+idir);
+
+                              for (int idir_mom = 0; idir_mom < DIM; idir_mom++)
+                                {
+                                  M[idir_mom      ] = 2.0*centerCoef[l]*fg_CubeSplit(stencilData,jf-m, l,3,5+idir,5+idir_mom);
+                                  M[idir_mom + DIM] = 2.0*centerCoef[l]*fg_CubeSplit(stencilData,jf+m,-l,3,5+idir,5+idir_mom);
+                                }
+
+                              PGRAD[1] += 2.0*centerCoef[l]*f_DivSplit(stencilData,jf-m, l,3);
+                              PGRAD[0] += 2.0*centerCoef[l]*f_DivSplit(stencilData,jf+m,-l,3);
+                              
+                              for (int vel_comp = 0;  vel_comp < DIM; vel_comp ++)
+                                {
+                                  KE[1] += 2.0*centerCoef[l]*fg_QuadSplit(stencilData,jf-m, l,2,5+idir)*0.5*(stencilData[stencilIdx(5+vel_comp,jf-m)]*stencilData[stencilIdx(5+vel_comp,jf-m+l)]);
+                                  KE[0] += 2.0*centerCoef[l]*fg_QuadSplit(stencilData,jf+m,-l,2,5+idir)*0.5*(stencilData[stencilIdx(5+vel_comp,jf+m)]*stencilData[stencilIdx(5+vel_comp,jf+m-l)]);
+                                }
+                              
+                              IE[1] += 2.0*centerCoef[l]*fg_CubeSplit(stencilData,jf-m, l,3,0,5+idir);
+                              IE[0] += 2.0*centerCoef[l]*fg_CubeSplit(stencilData,jf+m,-l,3,0,5+idir);
+
+                              PDIFF[1] += 2.0*centerCoef[l]*fg_DivSplit(stencilData,jf-m, l,5+idir,3);
+                              PDIFF[0] += 2.0*centerCoef[l]*fg_DivSplit(stencilData,jf-m, l,5+idir,3);                              
+                            }
+                        }
+
+                      rhs[0] += -invdx[idir]*(C[1] - C[0]);
+                      rhs[1] += -invdx[idir]*(IE[1] + KE[1] + PDIFF[1] - IE[0] - KE[0] - PDIFF[0]);
+                      rhs[2+idir] += -invdx[idir]*(PGRAD[1] - PGRAD[0]);
+                      for (int rhs_vel_comp = 0; rhs_vel_comp < DIM; rhs_vel_comp++)
+                        {
+                          rhs[2+rhs_vel_comp] += -invdx[idir]*(M[1] - M[0]);
+                        }
+                    }
                 }
             }
         }

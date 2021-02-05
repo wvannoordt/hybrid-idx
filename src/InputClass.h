@@ -9,5 +9,7 @@ struct InputClass
     int nguard;
     int numSteps;
     double bounds[2*DIM];
+    double Rgas;
+    double gamma;
 };
 #endif

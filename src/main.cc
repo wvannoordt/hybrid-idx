@@ -29,6 +29,8 @@ int main(int argc, char** argv)
     ptree["numSteps"].MapTo(&input.numSteps) = new PTL::PTLInteger(1000, "number of timesteps");
     ptree["nguard"].MapTo(&input.nguard) = new PTL::PTLInteger(4, "number of guard cells");
     ptree["bounds"].MapTo(&boundsTmp) = new PTL::PTLStaticDoubleArray(2*DIM, "bounds of the block", [](int i){return (double)(0 + (i%2));});
+    ptree["Rgas"].MapTo(&input.Rgas)  = new PTL::PTLDouble(287.0, "Gas constant");
+    ptree["gamma"].MapTo(&input.Rgas)  = new PTL::PTLDouble(1.4, "Gamma (Specific heat ratio)");
     
     ptree.Read("input.ptl");
     ptree.StrictParse();
@@ -60,7 +62,7 @@ int main(int argc, char** argv)
     {
         auto start = std::chrono::high_resolution_clock::now();
         
-        // DivGpu(gpuFlow, input);
+        //InitGpu(gpuFlow, input);
         ConvCpu(cpuFlow, input);
         MPI_Barrier(MPI_COMM_WORLD);
         

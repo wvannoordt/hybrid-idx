@@ -1,5 +1,7 @@
 centOrder = 2
 nxb       = [32, 32, 32]
-lnblocks  = 10
+lnblocks  = 2
 nguard    = 4
 numSteps  = 500
+Rgas      = 287.0
+gamma     = 1.4    
