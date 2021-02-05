@@ -83,6 +83,11 @@ void InitGpu(double* flow, const InputClass& input)
     CuCheck(cudaDeviceSynchronize());
 }
 
+__global__ void K_Conv(double* flow, const InputClass input, const int lb)
+{
+    
+}
+
 void ConvGpu(double* flow, const InputClass& input, int lb)
 {
     dim3 blockConf;
@@ -112,7 +117,7 @@ void ConvGpu(double* flow, const InputClass& input, int lb)
     
     for (int lb = 0; lb < input.lnblocks; lb++)
     {
-        // K_Init<<<gridConf, blockConf>>>(flow, input, lb);
+        K_Conv<<<gridConf, blockConf>>>(flow, input, lb);
         CuCheck(cudaPeekAtLastError());
     }
     CuCheck(cudaDeviceSynchronize());

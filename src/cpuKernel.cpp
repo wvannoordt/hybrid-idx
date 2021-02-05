@@ -47,6 +47,7 @@ void InitCpu(double* flow, const InputClass& input)
 void ConvCpu(double* flow, const InputClass& input)
 {
     double centerCoef[4];
+    // p, T, u, v, w
     double stencilData[9*(2+DIM)];
     int imin = 0;
     int imax = input.nxb[0];
@@ -56,6 +57,7 @@ void ConvCpu(double* flow, const InputClass& input)
     int kmax = IS3D*input.nxb[1+IS3D] + (1-IS3D);
     int stencilWid = input.centOrder/2;
     int dijk[3];
+    double err = 0.0;
     for (int idir = 0; idir < DIM; idir ++)
     {
         for (int d = 0; d < DIM; d++) dijk[d] = 0;
