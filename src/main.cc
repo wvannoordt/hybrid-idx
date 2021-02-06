@@ -12,6 +12,8 @@
 #include "CuErr.h"
 #include <chrono>
 
+
+
 InputClass input;
 
 int main(int argc, char** argv)
@@ -31,6 +33,7 @@ int main(int argc, char** argv)
     ptree["bounds"].MapTo(&boundsTmp) = new PTL::PTLStaticDoubleArray(2*DIM, "bounds of the block", [](int i){return (double)(0 + (i%2));});
     ptree["Rgas"].MapTo(&input.Rgas)  = new PTL::PTLDouble(287.0, "Gas constant");
     ptree["gamma"].MapTo(&input.Rgas)  = new PTL::PTLDouble(1.4, "Gamma (Specific heat ratio)");
+    ptree["device"].MapTo(&input.dev)  = new PTL::PTLAutoEnum(device::cpu, deviceStr, "The device to run on");
     
     ptree.Read("input.ptl");
     ptree.StrictParse();
@@ -54,16 +57,19 @@ int main(int argc, char** argv)
     double* gpuFlow = 0;
     CuCheck(cudaMalloc((void**)(&gpuFlow), totalSize));
     
-    InitCpu(cpuFlow, input);
-    InitGpu(gpuFlow, input);
+    double* cpuErr = (double*)malloc(totalSize);
+    double* gpuErr = 0;
+    CuCheck(cudaMalloc((void**)(&gpuErr), totalSize));
+    
+    InitCpu(cpuFlow, cpuErr, input);
+    InitGpu(gpuFlow, gpuErr, input);
     int numZer = std::to_string(input.numSteps-1).length();
     double elapsedTime = 0.0;
     for (int nt = 0; nt < input.numSteps; nt++)
     {
         auto start = std::chrono::high_resolution_clock::now();
-        
-        //InitGpu(gpuFlow, input);
-        ConvCpu(cpuFlow, input);
+        if (input.dev == device::gpu) {ConvGpu(gpuFlow, gpuErr, input);}
+        else {ConvCpu(cpuFlow, cpuErr, input);}
         MPI_Barrier(MPI_COMM_WORLD);
         
         auto finish = std::chrono::high_resolution_clock::now();
@@ -81,6 +87,8 @@ int main(int argc, char** argv)
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
     free(cpuFlow);
     CuCheck(cudaFree(gpuFlow));
+    free(cpuErr);
+    CuCheck(cudaFree(gpuErr));
     MPI_Finalize();
     
 }
