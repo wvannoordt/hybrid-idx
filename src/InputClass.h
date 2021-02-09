@@ -25,5 +25,6 @@ struct InputClass
     double Rgas;
     double gamma;
     int dev;
+    bool outputGuards;
 };
 #endif

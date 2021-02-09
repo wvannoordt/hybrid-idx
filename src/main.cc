@@ -34,6 +34,7 @@ int main(int argc, char** argv)
     ptree["Rgas"].MapTo(&input.Rgas)  = new PTL::PTLDouble(287.0, "Gas constant");
     ptree["gamma"].MapTo(&input.Rgas)  = new PTL::PTLDouble(1.4, "Gamma (Specific heat ratio)");
     ptree["device"].MapTo(&input.dev)  = new PTL::PTLAutoEnum(device::cpu, deviceStr, "The device to run on");
+    ptree["outputGuards"].MapTo(&input.outputGuards) = new PTL::PTLBoolean(false, "Output the guards");
     
     ptree.Read("input.ptl");
     ptree.StrictParse();
@@ -83,6 +84,14 @@ int main(int argc, char** argv)
     if (mypenoG == 0)
     {
         std::cout << "Average timestep: " + std::to_string(elapsedTime/input.numSteps) + " ms" << std::endl;
+    }
+    if ((input.dev == device::cpu) && (mypenoG==0))
+    {
+        OutputCpu(cpuErr, input, 0);
+    }
+    if ((input.dev == device::gpu) && (mypenoG==0))
+    {
+        // OutputGpu(gpuErr, input, 0);
     }
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
     free(cpuFlow);
