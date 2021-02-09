@@ -73,7 +73,7 @@ void InitCpu(double* flow, double* err, const InputClass& input)
 #define f_DivSplit(q,j,l,v1)         (0.500*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))]))
 #define fg_QuadSplit(q,j,l,v1,v2)    (0.250*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))]))
 #define fg_CubeSplit(q,j,l,v1,v2,v3) (0.125*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))])*(q[stencilIdx((v3),(j))] + q[stencilIdx((v3),(j)+(l))]))
-#define fg_DivSplit(q,j,l,v1,v2)     (0.500*(q[stencilIdx((v1),(j)+(l))]*q[stencilIdx((v2),(j))]) + (q[stencilIdx((v1),(j))]*q[stencilIdx((v2),(j)+(l))]))
+#define fg_DivSplit(q,j,l,v1,v2)     (0.500*((q[stencilIdx((v1),(j)+(l))]*q[stencilIdx((v2),(j))]) + (q[stencilIdx((v1),(j))]*q[stencilIdx((v2),(j)+(l))])))
 
 void ConvCpu(double* flow, double* err, const InputClass& input)
 {
@@ -155,7 +155,7 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
                             stencilData[stencilIdx(2,n)] = stencilData[stencilIdx(3,n)]/(input.Rgas*stencilData[stencilIdx(4,n)]);
                             
                             // IE = P/(rho*(gamma - 1))
-                            stencilData[stencilIdx(0,n)] = stencilData[stencilIdx(3,n)]/(stencilData[stencilIdx(2,n)]*(input.gamma - 1.0));
+                            stencilData[stencilIdx(0,n)] = stencilData[stencilIdx(3,n)]/(stencilData[stencilIdx(4,n)]*(input.gamma - 1.0));
                             
                             // ke (don't care)
                             stencilData[stencilIdx(1,n)] = 0.0;
@@ -178,8 +178,8 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
                                 C[0] += 2.0*centerCoef[l-1]*fg_QuadSplit(stencilData,jf+m,-l,4,5+idir);
                                 for (int idir_mom = 0; idir_mom < DIM; idir_mom++)
                                 {
-                                    M[idir_mom      ] = 2.0*centerCoef[l-1]*fg_CubeSplit(stencilData,jf-m, l,4,5+idir,5+idir_mom);
-                                    M[idir_mom + DIM] = 2.0*centerCoef[l-1]*fg_CubeSplit(stencilData,jf+m,-l,4,5+idir,5+idir_mom);
+                                    M[idir_mom      ] += 2.0*centerCoef[l-1]*fg_CubeSplit(stencilData,jf-m, l,4,5+idir,5+idir_mom);
+                                    M[idir_mom + DIM] += 2.0*centerCoef[l-1]*fg_CubeSplit(stencilData,jf+m,-l,4,5+idir,5+idir_mom);
                                 }
 
                                 PGRAD[1] += 2.0*centerCoef[l-1]*f_DivSplit(stencilData,jf-m, l,3);
@@ -195,7 +195,7 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
                                 IE[0] += 2.0*centerCoef[l-1]*fg_CubeSplit(stencilData,jf+m,-l,4,0,5+idir);
 
                                 PDIFF[1] += 2.0*centerCoef[l-1]*fg_DivSplit(stencilData,jf-m, l,5+idir,3);
-                                PDIFF[0] += 2.0*centerCoef[l-1]*fg_DivSplit(stencilData,jf-m, l,5+idir,3);
+                                PDIFF[0] += 2.0*centerCoef[l-1]*fg_DivSplit(stencilData,jf+m,-l,5+idir,3);
                             }
                         }
                         
@@ -214,10 +214,10 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
                         wvel_mms(wvel, xyz[0], xyz[1], xyz[2]);
                         
                         double invgm1 = 1.0/(input.gamma-1.0);
-                        engy[0] = pres[0]/(dens[0]*(input.gamma - 1.0)) + sqr(uvel[0]) + sqr(vvel[0]) + IS3D*sqr(wvel[0]);
-                        engy[1] = 2*(uvel[0]*uvel[1] + vvel[0]*vvel[1] + wvel[0]*wvel[1]) + invgm1*(dens[0]*pres[1]-dens[1]*pres[0])/(sqr(dens[0]));
-                        engy[2] = 2*(uvel[0]*uvel[2] + vvel[0]*vvel[2] + wvel[0]*wvel[2]) + invgm1*(dens[0]*pres[2]-dens[2]*pres[0])/(sqr(dens[0]));
-                        engy[3] = 2*(uvel[0]*uvel[3] + vvel[0]*vvel[3] + wvel[0]*wvel[3]) + invgm1*(dens[0]*pres[3]-dens[3]*pres[0])/(sqr(dens[0]));
+                        engy[0] = pres[0]/(dens[0]*(input.gamma - 1.0)) + 0.5*(sqr(uvel[0]) + sqr(vvel[0]) + IS3D*sqr(wvel[0]));
+                        engy[1] = (uvel[0]*uvel[1] + vvel[0]*vvel[1] + wvel[0]*wvel[1]) + invgm1*(dens[0]*pres[1]-dens[1]*pres[0])/(sqr(dens[0]));
+                        engy[2] = (uvel[0]*uvel[2] + vvel[0]*vvel[2] + wvel[0]*wvel[2]) + invgm1*(dens[0]*pres[2]-dens[2]*pres[0])/(sqr(dens[0]));
+                        engy[3] = (uvel[0]*uvel[3] + vvel[0]*vvel[3] + wvel[0]*wvel[3]) + invgm1*(dens[0]*pres[3]-dens[3]*pres[0])/(sqr(dens[0]));
                         
                         rhsExact[0] = cont_rhs_mms(pres, dens, uvel, vvel, wvel);
                         rhsExact[1] = engy_rhs_mms(pres, dens, uvel, vvel, wvel, engy);
@@ -225,34 +225,20 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
                         rhsExact[3] = momy_rhs_mms(pres, dens, uvel, vvel, wvel);
                         rhsExact[4] = momz_rhs_mms(pres, dens, uvel, vvel, wvel);
 
-                        rhs[0] += -invdx[idir]*(C[1] - C[0]);
+                        rhs[0] += invdx[idir]*(C[1] - C[0]);
                         rhs[1] += -invdx[idir]*(IE[1] + KE[1] + PDIFF[1] - IE[0] - KE[0] - PDIFF[0]);
                         rhs[2+idir] += -invdx[idir]*(PGRAD[1] - PGRAD[0]);
                         for (int rhs_vel_comp = 0; rhs_vel_comp < DIM; rhs_vel_comp++)
                         {
-                            rhs[2+rhs_vel_comp] += -invdx[idir]*(M[1] - M[0]);
+                            rhs[2+rhs_vel_comp] -= invdx[idir]*(M[rhs_vel_comp] - M[rhs_vel_comp+DIM]);
                         }
-//                         err[bidx(0, i, j, k, lb, input)] += sqr(rhs[0] - rhsExact[0]/DIM);
-//                         err[bidx(1, i, j, k, lb, input)] += sqr(rhs[1] - rhsExact[1]/DIM);
-//                         err[bidx(2, i, j, k, lb, input)] += sqr(rhs[2] - rhsExact[2]/DIM);
-//                         err[bidx(3, i, j, k, lb, input)] += sqr(rhs[3] - rhsExact[3]/DIM);
-// #if(IS3D)
-//                         err[bidx(4, i, j, k, lb, input)] += sqr(rhs[4] - rhsExact[4]/DIM);
-// #endif
-                        err[bidx(0, i, j, k, lb, input)] += rhs[0];
-                        err[bidx(1, i, j, k, lb, input)] += rhs[1];
-                        err[bidx(2, i, j, k, lb, input)] += rhs[2];
-                        err[bidx(3, i, j, k, lb, input)] += rhs[3];
+                        err[bidx(0, i, j, k, lb, input)] += rhs[0] - rhsExact[0]/DIM;
+                        err[bidx(1, i, j, k, lb, input)] += rhs[1] - rhsExact[1]/DIM;
+                        err[bidx(2, i, j, k, lb, input)] += rhs[2] - rhsExact[2]/DIM;
+                        err[bidx(3, i, j, k, lb, input)] += rhs[3] - rhsExact[3]/DIM;
 #if(IS3D)
-                        err[bidx(4, i, j, k, lb, input)] += rhs[4];
+                        err[bidx(4, i, j, k, lb, input)] += rhs[4] - rhsExact[4]/DIM;
 #endif
-//                             err[bidx(0, i, j, k, lb, input)] += rhsExact[0]/DIM;
-//                             err[bidx(1, i, j, k, lb, input)] += rhsExact[1]/DIM;
-//                             err[bidx(2, i, j, k, lb, input)] += rhsExact[2]/DIM;
-//                             err[bidx(3, i, j, k, lb, input)] += rhsExact[3]/DIM;
-// #if(IS3D)
-//                             err[bidx(4, i, j, k, lb, input)] += rhsExact[4]/DIM;
-// #endif
                     }
                 }
             }
@@ -319,12 +305,12 @@ void OutputCpu(double* flow, const InputClass& input, int lb)
     myfile << "CELL_DATA " << (imax-imin)*(jmax-jmin)*(kmax-kmin) << std::endl;
     int v = 0;
     std::vector<std::string> names;
-    names.push_back("pres");
-    names.push_back("dens");
-    names.push_back("uvel");
-    names.push_back("vvel");
+    names.push_back("p_con");
+    names.push_back("dens_eng");
+    names.push_back("uvel_mx");
+    names.push_back("vvel_my");
 #if(IS3D)
-    names.push_back("wvel");
+    names.push_back("wvel_mz");
 #endif
     for (const auto s: names)
     {
