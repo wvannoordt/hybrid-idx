@@ -3,7 +3,8 @@
 #include "InputClass.h"
 #include "Config.h"
 #include "Glob.h"
+#include <string>
 void InitCpu(double* flow, double* err, const InputClass& input);
-void OutputCpu(double* flow, const InputClass& input, int lb);
+void Output(double* flow, const InputClass& input, int lb, std::string filename);
 void ConvCpu(double* flow, double* err, const InputClass& input);
 #endif

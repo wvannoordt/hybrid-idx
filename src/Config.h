@@ -11,6 +11,8 @@
 #define IS3D 0
 #endif
 
-#define BLOCK_SIZE 8
+#define BLOCK_SIZEX 4
+#define BLOCK_SIZEY 4
+#define BLOCK_SIZEZ 4
 
 #endif

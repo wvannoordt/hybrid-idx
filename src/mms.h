@@ -37,15 +37,10 @@ ar[3] =  PI*cos(PI*(x))*sin(PI*(y))*cos(PI*(z));\
     
 #define engy_rhs_mms(p, rho, u, v, w, e) (-u[0]*p[1]-p[0]*u[1]-v[0]*p[2]-p[0]*v[2]-w[0]*p[3]-p[0]*w[3]\
     - u[0]*e[0]*rho[1] - rho[0]*(e[0]*u[1] + u[0]*e[1]) - e[0]*v[0]*rho[2] - rho[0]*(e[0]*v[2] + v[0]*e[2]) - e[0]*w[0]*rho[3] - rho[0]*(e[0]*w[3] + w[0]*e[3]))
-//#define engy_rhs_mms(p, rho, u, v, w, e) (- u[0]*e[0]*rho[1] - rho[0]*(e[0]*u[1] + u[0]*e[1]) - e[0]*v[0]*rho[2] - rho[0]*(e[0]*v[2] + v[0]*e[2]) - e[0]*w[0]*rho[3] - rho[0]*(e[0]*w[3] + w[0]*e[3]))
 
 #define momx_rhs_mms(p, rho, u, v, w) (-p[1] - u[0]*u[0]*rho[1] - rho[0]*(u[0]*u[1] + u[0]*u[1]) - u[0]*v[0]*rho[2] - rho[0]*(u[0]*v[2] + v[0]*u[2]) - u[0]*w[0]*rho[3] - rho[0]*(u[0]*w[3] + w[0]*u[3]))
 #define momy_rhs_mms(p, rho, u, v, w) (-p[2] - v[0]*u[0]*rho[1] - rho[0]*(v[0]*u[1] + u[0]*v[1]) - v[0]*v[0]*rho[2] - rho[0]*(v[0]*v[2] + v[0]*v[2]) - v[0]*w[0]*rho[3] - rho[0]*(v[0]*w[3] + w[0]*v[3]))
 #define momz_rhs_mms(p, rho, u, v, w) (-p[3] - w[0]*u[0]*rho[1] - rho[0]*(w[0]*u[1] + u[0]*w[1]) - w[0]*v[0]*rho[2] - rho[0]*(w[0]*v[2] + v[0]*w[2]) - w[0]*w[0]*rho[3] - rho[0]*(w[0]*w[3] + w[0]*w[3]))
-
-// #define momx_rhs_mms(p, rho, u, v, w) -p[1]
-// #define momy_rhs_mms(p, rho, u, v, w) -p[2]
-// #define momz_rhs_mms(p, rho, u, v, w) -p[3]
 
 #define sqr(x) (x)*(x)
 

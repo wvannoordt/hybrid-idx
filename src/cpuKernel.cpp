@@ -247,7 +247,7 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
     }
 }
 
-void OutputCpu(double* flow, const InputClass& input, int lb)
+void Output(double* flow, const InputClass& input, int lb, std::string filename)
 {
     int imin = -input.nguard;
     int imax = (input.nxb[0] + input.nguard)+1;
@@ -269,8 +269,6 @@ void OutputCpu(double* flow, const InputClass& input, int lb)
     double dx[DIM];
     int ijk[3];
     for (int d = 0; d < DIM; d++) dx[d] = (input.bounds[2*d+1] - input.bounds[2*d])/input.nxb[d];
-    
-    std::string filename = "output/block" + zfill(lb, 4) + "p" + zfill(mypenoG, 3) + ".vtk";
     std::ofstream myfile;
     myfile.open(filename.c_str());
     myfile << "# vtk DataFile Version 3.0" << std::endl;

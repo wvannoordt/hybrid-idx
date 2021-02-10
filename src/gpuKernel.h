@@ -9,4 +9,5 @@ struct Coef_t
 };
 void InitGpu(double* flow, double* err, const InputClass& input);
 void ConvGpu(double* flow, double* err, const InputClass& input);
+void GCopy(double* cTarget, double* gTarget, size_t size);
 #endif

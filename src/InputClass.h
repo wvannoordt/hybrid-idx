@@ -26,5 +26,6 @@ struct InputClass
     double gamma;
     int dev;
     bool outputGuards;
+    bool outputError;
 };
 #endif

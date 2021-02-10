@@ -1,5 +1,6 @@
 #include "gpuKernel.h"
 #include "Idx.h"
+#include "mms.h"
 #include "CuErr.h"
 #include <iostream>
 __global__ void K_Init(double* flow, double* err, const InputClass input, const int lb)
@@ -23,6 +24,12 @@ __global__ void K_Init(double* flow, double* err, const InputClass input, const 
 
     if (i < (input.nxb[0]+input.nguard) && j < (input.nxb[1]+input.nguard) && k < (input.nxb[2]+input.nguard))
     {
+        double pres[4];
+        double dens[4];
+        double uvel[4];
+        double vvel[4];
+        double wvel[4];
+        
         xyz[0] = input.bounds[0] + (i + 0.5)*dx[0];
         xyz[1] = input.bounds[2] + (j + 0.5)*dx[1];
 #if(IS3D)
@@ -30,14 +37,27 @@ __global__ void K_Init(double* flow, double* err, const InputClass input, const 
 #else
         xyz[2] = 0.0;
 #endif
-        flow[bidx(0, i, j, k, lb, input)] = xyz[0];
-        flow[bidx(1, i, j, k, lb, input)] = xyz[1];
-        flow[bidx(2, i, j, k, lb, input)] = xyz[2];
-        flow[bidx(3, i, j, k, lb, input)] = xyz[0];
+
+        pres_mms(pres, xyz[0], xyz[1], xyz[2]);
+        dens_mms(dens, xyz[0], xyz[1], xyz[2]);
+        uvel_mms(uvel, xyz[0], xyz[1], xyz[2]);
+        vvel_mms(vvel, xyz[0], xyz[1], xyz[2]);
+        wvel_mms(wvel, xyz[0], xyz[1], xyz[2]);
+
+        flow[bidx(0, i, j, k, lb, input)] = pres[0];
+        flow[bidx(1, i, j, k, lb, input)] = dens[0];
+        flow[bidx(2, i, j, k, lb, input)] = uvel[0];
+        flow[bidx(3, i, j, k, lb, input)] = vvel[0];
 #if(IS3D)
-        flow[bidx(4, i, j, k, lb, input)] = xyz[1];
+        flow[bidx(4, i, j, k, lb, input)] = wvel[0];
 #endif
         err[bidx(0, i, j, k, lb, input)] = 0.0;
+        err[bidx(1, i, j, k, lb, input)] = 0.0;
+        err[bidx(2, i, j, k, lb, input)] = 0.0;
+        err[bidx(3, i, j, k, lb, input)] = 0.0;
+#if(IS3D)
+        err[bidx(4, i, j, k, lb, input)] = 0.0;
+#endif
     }
 }
 
@@ -52,18 +72,18 @@ void InitGpu(double* flow, double* err, const InputClass& input)
     //Total constant memory:    64.000000 KB
     
     dim3 blockConf;
-    blockConf.x = BLOCK_SIZE;
-    blockConf.y = BLOCK_SIZE;
+    blockConf.x = BLOCK_SIZEX;
+    blockConf.y = BLOCK_SIZEY;
 #if(IS3D)
-    blockConf.z = BLOCK_SIZE;
+    blockConf.z = BLOCK_SIZEZ;
 #endif
     dim3 gridConf;
     int numcells[DIM];
     for (int i = 0; i < DIM; i++) {numcells[i] = input.nxb[i] + 2*input.nguard;}
-    gridConf.x = (numcells[0] + BLOCK_SIZE - 1)/BLOCK_SIZE;
-    gridConf.y = (numcells[1] + BLOCK_SIZE - 1)/BLOCK_SIZE;
+    gridConf.x = (numcells[0] + BLOCK_SIZEX - 1)/BLOCK_SIZEX;
+    gridConf.y = (numcells[1] + BLOCK_SIZEY - 1)/BLOCK_SIZEY;
 #if(IS3D)
-    gridConf.z = (numcells[2] + BLOCK_SIZE - 1)/BLOCK_SIZE;
+    gridConf.z = (numcells[2] + BLOCK_SIZEZ - 1)/BLOCK_SIZEZ;
 #endif
 
     if (mypenoG==0 && !hasPrintedGp)
@@ -86,10 +106,11 @@ void InitGpu(double* flow, double* err, const InputClass& input)
 
 
 #define stencilIdx(v,j) ((v)+(5+DIM)*(j))
+
 #define f_DivSplit(q,j,l,v1)         (0.500*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))]))
 #define fg_QuadSplit(q,j,l,v1,v2)    (0.250*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))]))
 #define fg_CubeSplit(q,j,l,v1,v2,v3) (0.125*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))])*(q[stencilIdx((v3),(j))] + q[stencilIdx((v3),(j)+(l))]))
-#define fg_DivSplit(q,j,l,v1,v2)     (0.500*(q[stencilIdx((v1),(j)+(l))]*q[stencilIdx((v2),(j))]) + (q[stencilIdx((v1),(j))]*q[stencilIdx((v2),(j)+(l))]))
+#define fg_DivSplit(q,j,l,v1,v2)     (0.500*((q[stencilIdx((v1),(j)+(l))]*q[stencilIdx((v2),(j))]) + (q[stencilIdx((v1),(j))]*q[stencilIdx((v2),(j)+(l))])))
 
 __global__ void K_Conv(double* flow, double* err, const InputClass input, const int lb, const Coef_t center, int stencilWid)
 {
@@ -101,14 +122,22 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
     int k = 0;
 #endif
     double invdx[DIM];
+    double xyz[3];
     for (int d = 0; d < DIM; d++) invdx[d] = input.nxb[d]/(input.bounds[2*d+1] - input.bounds[2*d]);
     int dijk[3] = {0};
+    int ijk[3] = {0};
     if (i < (input.nxb[0]) && j < (input.nxb[1]) && k < (input.nxb[2]))
     {
+        ijk[0] = i;
+        ijk[1] = j;
+        ijk[2] = k;
         for (int idir = 0; idir < DIM; idir++)
         {
             dijk[idir] = 1;
-            double stencilData[9*(5+DIM)]; //ie,ke,rho,P,T,u,v,w
+            for (int d = 0; d < DIM; d++) xyz[d] = input.bounds[2*d] + (ijk[d] + 0.5) / invdx[d];
+            
+            double stencilData[9*(5+DIM)]; //ie,ke,T,P,rho,u,v,w
+            double rhs[2+DIM] = {0.0};
             // fluxes
             double C[2]     = {0.0};
             double M[DIM*2] = {0.0};
@@ -116,6 +145,7 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
             double KE[2]    = {0.0};
             double IE[2]    = {0.0};
             double PDIFF[2] = {0.0};
+
             for (int n = 0; n < input.centOrder + 1; n++)
             {
                 for (int v = 3; v < (5+DIM); v++)
@@ -126,8 +156,13 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
                     int h = bidx(v-3, ii, jj, kk, lb, input);
                     stencilData[stencilIdx(v,n)] = flow[h];
                 }
+                // T
+                stencilData[stencilIdx(2,n)] = stencilData[stencilIdx(3,n)]/(input.Rgas*stencilData[stencilIdx(4,n)]);
+                
                 // IE = P/(rho*(gamma - 1))
-                stencilData[stencilIdx(0,n)] = stencilData[stencilIdx(3,n)]/(stencilData[stencilIdx(2,n)]*(input.gamma - 1.0));
+                stencilData[stencilIdx(0,n)] = stencilData[stencilIdx(3,n)]/(stencilData[stencilIdx(4,n)]*(input.gamma - 1.0));
+                
+                // ke (don't care)
                 stencilData[stencilIdx(1,n)] = 0.0;
 
                 // Not needed per se starts
@@ -136,23 +171,20 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
                     stencilData[stencilIdx(1,n)] += 0.5*stencilData[stencilIdx(5+vel_comp,n)]*stencilData[stencilIdx(5+vel_comp,n)];
                 }
                 // Not needed per se ends
-
-                stencilData[stencilIdx(2,n)] = stencilData[stencilIdx(3,n)]/(input.Rgas*stencilData[stencilIdx(4,n)]);
             }
-            // Mass conservation                          
+            // Mass conservation                              
             for (int l = 1; l <= stencilWid; l++)
             {
                 double al = center.c[l-1];
                 int jf = stencilWid;
                 for (int m = 0; m <= (l-1); m++)
                 {
-                    C[1] += 2.0*al*fg_QuadSplit(stencilData,jf-m, l,2,5+idir);
-                    C[0] += 2.0*al*fg_QuadSplit(stencilData,jf+m,-l,2,5+idir);
-
+                    C[1] += 2.0*al*fg_QuadSplit(stencilData,jf-m, l,4,5+idir);
+                    C[0] += 2.0*al*fg_QuadSplit(stencilData,jf+m,-l,4,5+idir);
                     for (int idir_mom = 0; idir_mom < DIM; idir_mom++)
                     {
-                        M[idir_mom      ] = 2.0*al*fg_CubeSplit(stencilData,jf-m, l,3,5+idir,5+idir_mom);
-                        M[idir_mom + DIM] = 2.0*al*fg_CubeSplit(stencilData,jf+m,-l,3,5+idir,5+idir_mom);
+                        M[idir_mom      ] += 2.0*al*fg_CubeSplit(stencilData,jf-m, l,4,5+idir,5+idir_mom);
+                        M[idir_mom + DIM] += 2.0*al*fg_CubeSplit(stencilData,jf+m,-l,4,5+idir,5+idir_mom);
                     }
 
                     PGRAD[1] += 2.0*al*f_DivSplit(stencilData,jf-m, l,3);
@@ -160,46 +192,85 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
 
                     for (int vel_comp = 0;  vel_comp < DIM; vel_comp ++)
                     {
-                        KE[1] += 2.0*al*fg_QuadSplit(stencilData,jf-m, l,2,5+idir)*0.5*(stencilData[stencilIdx(5+vel_comp,jf-m)]*stencilData[stencilIdx(5+vel_comp,jf-m+l)]);
-                        KE[0] += 2.0*al*fg_QuadSplit(stencilData,jf+m,-l,2,5+idir)*0.5*(stencilData[stencilIdx(5+vel_comp,jf+m)]*stencilData[stencilIdx(5+vel_comp,jf+m-l)]);
+                        KE[1] += 2.0*al*fg_QuadSplit(stencilData,jf-m, l,4,5+idir)*0.5*(stencilData[stencilIdx(5+vel_comp,jf-m)]*stencilData[stencilIdx(5+vel_comp,jf-m+l)]);
+                        KE[0] += 2.0*al*fg_QuadSplit(stencilData,jf+m,-l,4,5+idir)*0.5*(stencilData[stencilIdx(5+vel_comp,jf+m)]*stencilData[stencilIdx(5+vel_comp,jf+m-l)]);
                     }
 
-                    IE[1] += 2.0*al*fg_CubeSplit(stencilData,jf-m, l,3,0,5+idir);
-                    IE[0] += 2.0*al*fg_CubeSplit(stencilData,jf+m,-l,3,0,5+idir);
+                    IE[1] += 2.0*al*fg_CubeSplit(stencilData,jf-m, l,4,0,5+idir);
+                    IE[0] += 2.0*al*fg_CubeSplit(stencilData,jf+m,-l,4,0,5+idir);
 
                     PDIFF[1] += 2.0*al*fg_DivSplit(stencilData,jf-m, l,5+idir,3);
-                    PDIFF[0] += 2.0*al*fg_DivSplit(stencilData,jf-m, l,5+idir,3);
+                    PDIFF[0] += 2.0*al*fg_DivSplit(stencilData,jf+m,-l,5+idir,3);
                 }
             }
-            double rhs[2+DIM] = {0.0};
-            rhs[0] += -invdx[idir]*(C[1] - C[0]);
+            
+            double pres[4];
+            double dens[4];
+            double uvel[4];
+            double vvel[4];
+            double wvel[4];
+            double engy[4];
+            double rhsExact[5];
+            
+            pres_mms(pres, xyz[0], xyz[1], xyz[2]);
+            dens_mms(dens, xyz[0], xyz[1], xyz[2]);
+            uvel_mms(uvel, xyz[0], xyz[1], xyz[2]);
+            vvel_mms(vvel, xyz[0], xyz[1], xyz[2]);
+            wvel_mms(wvel, xyz[0], xyz[1], xyz[2]);
+            
+            double invgm1 = 1.0/(input.gamma-1.0);
+            engy[0] = pres[0]/(dens[0]*(input.gamma - 1.0)) + 0.5*(sqr(uvel[0]) + sqr(vvel[0]) + IS3D*sqr(wvel[0]));
+            engy[1] = (uvel[0]*uvel[1] + vvel[0]*vvel[1] + wvel[0]*wvel[1]) + invgm1*(dens[0]*pres[1]-dens[1]*pres[0])/(sqr(dens[0]));
+            engy[2] = (uvel[0]*uvel[2] + vvel[0]*vvel[2] + wvel[0]*wvel[2]) + invgm1*(dens[0]*pres[2]-dens[2]*pres[0])/(sqr(dens[0]));
+            engy[3] = (uvel[0]*uvel[3] + vvel[0]*vvel[3] + wvel[0]*wvel[3]) + invgm1*(dens[0]*pres[3]-dens[3]*pres[0])/(sqr(dens[0]));
+            
+            rhsExact[0] = cont_rhs_mms(pres, dens, uvel, vvel, wvel);
+            rhsExact[1] = engy_rhs_mms(pres, dens, uvel, vvel, wvel, engy);
+            rhsExact[2] = momx_rhs_mms(pres, dens, uvel, vvel, wvel);
+            rhsExact[3] = momy_rhs_mms(pres, dens, uvel, vvel, wvel);
+            rhsExact[4] = momz_rhs_mms(pres, dens, uvel, vvel, wvel);
+
+            rhs[0] += invdx[idir]*(C[1] - C[0]);
             rhs[1] += -invdx[idir]*(IE[1] + KE[1] + PDIFF[1] - IE[0] - KE[0] - PDIFF[0]);
             rhs[2+idir] += -invdx[idir]*(PGRAD[1] - PGRAD[0]);
             for (int rhs_vel_comp = 0; rhs_vel_comp < DIM; rhs_vel_comp++)
             {
-                rhs[2+rhs_vel_comp] += -invdx[idir]*(M[1] - M[0]);
+                rhs[2+rhs_vel_comp] -= invdx[idir]*(M[rhs_vel_comp] - M[rhs_vel_comp+DIM]);
             }
-            for (int myIndex = 0; myIndex < 2+DIM; myIndex++) err[bidx(0, i, j, k, lb, input)] = rhs[myIndex];
+            err[bidx(0, i, j, k, lb, input)] += rhs[0] - rhsExact[0]/DIM;
+            err[bidx(1, i, j, k, lb, input)] += rhs[1] - rhsExact[1]/DIM;
+            err[bidx(2, i, j, k, lb, input)] += rhs[2] - rhsExact[2]/DIM;
+            err[bidx(3, i, j, k, lb, input)] += rhs[3] - rhsExact[3]/DIM;
+#if(IS3D)
+            err[bidx(4, i, j, k, lb, input)] += rhs[4] - rhsExact[4]/DIM;
+#endif
+
             dijk[idir] = 0;
         }
     }
 }
 
+void GCopy(double* cTarget, double* gTarget, size_t size)
+{
+    CuCheck(cudaMemcpy(cTarget, gTarget, size, cudaMemcpyDeviceToHost));
+    //need to transpose here too!
+}
+
 void ConvGpu(double* flow, double* err, const InputClass& input)
 {
     dim3 blockConf;
-    blockConf.x = BLOCK_SIZE;
-    blockConf.y = BLOCK_SIZE;
+    blockConf.x = BLOCK_SIZEX;
+    blockConf.y = BLOCK_SIZEY;
 #if(IS3D)
-    blockConf.z = BLOCK_SIZE;
+    blockConf.z = BLOCK_SIZEZ;
 #endif
     dim3 gridConf;
     int numcells[DIM];
     for (int i = 0; i < DIM; i++) {numcells[i] = input.nxb[i];}
-    gridConf.x = (numcells[0] + BLOCK_SIZE - 1)/BLOCK_SIZE;
-    gridConf.y = (numcells[1] + BLOCK_SIZE - 1)/BLOCK_SIZE;
+    gridConf.x = (numcells[0] + BLOCK_SIZEX - 1)/BLOCK_SIZEX;
+    gridConf.y = (numcells[1] + BLOCK_SIZEY - 1)/BLOCK_SIZEY;
 #if(IS3D)
-    gridConf.z = (numcells[2] + BLOCK_SIZE - 1)/BLOCK_SIZE;
+    gridConf.z = (numcells[2] + BLOCK_SIZEZ - 1)/BLOCK_SIZEZ;
 #endif
 
     if (mypenoG==0 && !hasPrintedGp)

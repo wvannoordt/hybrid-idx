@@ -32,9 +32,11 @@ int main(int argc, char** argv)
     ptree["nguard"].MapTo(&input.nguard) = new PTL::PTLInteger(4, "number of guard cells");
     ptree["bounds"].MapTo(&boundsTmp) = new PTL::PTLStaticDoubleArray(2*DIM, "bounds of the block", [](int i){return (double)(0 + (i%2));});
     ptree["Rgas"].MapTo(&input.Rgas)  = new PTL::PTLDouble(287.0, "Gas constant");
-    ptree["gamma"].MapTo(&input.Rgas)  = new PTL::PTLDouble(1.4, "Gamma (Specific heat ratio)");
+    ptree["gamma"].MapTo(&input.gamma)  = new PTL::PTLDouble(1.4, "Specific heat ratio");
     ptree["device"].MapTo(&input.dev)  = new PTL::PTLAutoEnum(device::cpu, deviceStr, "The device to run on");
     ptree["outputGuards"].MapTo(&input.outputGuards) = new PTL::PTLBoolean(false, "Output the guards");
+    ptree["outputError"].MapTo(&input.outputError) = new PTL::PTLBoolean(false, "Output the error file");
+    
     
     ptree.Read("input.ptl");
     ptree.StrictParse();
@@ -60,6 +62,7 @@ int main(int argc, char** argv)
     
     double* cpuErr = (double*)malloc(totalSize);
     double* gpuErr = 0;
+    double* gpuErrMirror = (double*)malloc(totalSize);
     CuCheck(cudaMalloc((void**)(&gpuErr), totalSize));
     
     InitCpu(cpuFlow, cpuErr, input);
@@ -85,18 +88,20 @@ int main(int argc, char** argv)
     {
         std::cout << "Average timestep: " + std::to_string(elapsedTime/input.numSteps) + " ms" << std::endl;
     }
-    if ((input.dev == device::cpu) && (mypenoG==0))
+    if ((input.dev == device::cpu) && (mypenoG==0) && input.outputError)
     {
-        OutputCpu(cpuErr, input, 0);
+        Output(cpuErr, input, 0, "output/cpu.vtk");
     }
-    if ((input.dev == device::gpu) && (mypenoG==0))
+    if ((input.dev == device::gpu) && (mypenoG==0) && input.outputError)
     {
-        // OutputGpu(gpuErr, input, 0);
+        GCopy(gpuErrMirror, gpuErr, totalSize);
+        Output(gpuErrMirror, input, 0, "output/gpu.vtk");
     }
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
     free(cpuFlow);
     CuCheck(cudaFree(gpuFlow));
     free(cpuErr);
+    free(gpuErrMirror);
     CuCheck(cudaFree(gpuErr));
     MPI_Finalize();
     
