@@ -1,6 +1,6 @@
 EXE := program
 NUMPROCS := 1
-OPTLEVEL := 0
+OPTLEVEL := 3
 
 main: setup cpuKernel gpuKernel
 	mpicxx -O${OPTLEVEL} -I${PTL}/include -I./src -I/usr/local/cuda/include -c src/main.cc -o obj/main.o

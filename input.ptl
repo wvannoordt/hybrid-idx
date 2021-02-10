@@ -1,9 +1,9 @@
-#define numCell 24
+#define numCell 32
 centOrder    = 6
 nxb          = [$(numCell), $(numCell), $(numCell)]
-lnblocks     = 1
+lnblocks     = 10
 nguard       = 4
-numSteps     = 2
+numSteps     = 100
 Rgas         = 287.0
 gamma        = 1.4
 device       = gpu
