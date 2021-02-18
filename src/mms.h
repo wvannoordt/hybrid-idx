@@ -44,4 +44,6 @@ ar[3] =  PI*cos(PI*(x))*sin(PI*(y))*cos(PI*(z));\
 
 #define sqr(x) (x)*(x)
 
+#define d_abs(x) ((((x)<0)?(-(x)):((x))))
+
 #endif

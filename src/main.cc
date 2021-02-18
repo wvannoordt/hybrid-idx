@@ -10,9 +10,12 @@
 #include <cuda_runtime.h>
 #include "Glob.h"
 #include "CuErr.h"
+#include "Result.h"
 #include <chrono>
 
-
+#ifndef OPTL
+#define OPTL 0
+#endif
 
 InputClass input;
 
@@ -24,7 +27,9 @@ int main(int argc, char** argv)
     MPI_Comm_size(MPI_COMM_WORLD, &noprocs);
     int* nxbTmp;
     double* boundsTmp;
+    std::string outfile;
     PTL::PropertyTree ptree;
+    PTL::Interactive i(argc, argv, &ptree);
     ptree["centOrder"].MapTo(&input.centOrder) = new PTL::PTLInteger(2, "order of central scheme");
     ptree["nxb"].MapTo(&nxbTmp) = new PTL::PTLStaticIntegerArray(DIM, "dimensions of blocks", [](int i){return 16;});
     ptree["lnblocks"].MapTo(&input.lnblocks) = new PTL::PTLInteger(10, "total number of blocks");
@@ -36,7 +41,7 @@ int main(int argc, char** argv)
     ptree["device"].MapTo(&input.dev)  = new PTL::PTLAutoEnum(device::cpu, deviceStr, "The device to run on");
     ptree["outputGuards"].MapTo(&input.outputGuards) = new PTL::PTLBoolean(false, "Output the guards");
     ptree["outputError"].MapTo(&input.outputError) = new PTL::PTLBoolean(false, "Output the error file");
-    
+    ptree["resultFile"].MapTo(&outfile) = new PTL::PTLString("output/default.json", "Output the error file");
     
     ptree.Read("input.ptl");
     ptree.StrictParse();
@@ -56,6 +61,7 @@ int main(int argc, char** argv)
     size_t totalSize = sizeof(double) * blockSize * (2 + DIM) * input.lnblocks;
     if (mypeno == 0) std::cout << totalSize << " (bytes)" << std::endl;
     if (mypeno == 0) std::cout << totalSize/sizeof(double) << " (elements)" << std::endl;
+    if (mypeno == 0) std::cout << totalSize/(sizeof(double)*(2+DIM)) << " (cells)" << std::endl;
     double* cpuFlow = (double*)malloc(totalSize);
     double* gpuFlow = 0;
     CuCheck(cudaMalloc((void**)(&gpuFlow), totalSize));
@@ -82,7 +88,7 @@ int main(int argc, char** argv)
         elapsedTime += timeMS;
         if (mypenoG == 0) std::cout << ("nt: " + zfill(nt, numZer) + "/" + zfill(input.numSteps-1, numZer) + " time: " + std::to_string(timeMS) + " ms") << std::endl;
     }
-    
+    bool pass = false;
     MPI_Barrier(MPI_COMM_WORLD);
     if (mypenoG == 0)
     {
@@ -90,12 +96,12 @@ int main(int argc, char** argv)
     }
     if ((input.dev == device::cpu) && (mypenoG==0) && input.outputError)
     {
-        Output(cpuErr, input, 0, "output/cpu.vtk");
+        pass = Output(cpuErr, input, 0, "output/cpu.vtk");
     }
     if ((input.dev == device::gpu) && (mypenoG==0) && input.outputError)
     {
         GCopy(gpuErrMirror, gpuErr, totalSize);
-        Output(gpuErrMirror, input, 0, "output/gpu.vtk");
+        pass = Output(gpuErrMirror, input, 0, "output/gpu.vtk");
     }
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
     free(cpuFlow);
@@ -103,6 +109,24 @@ int main(int argc, char** argv)
     free(cpuErr);
     free(gpuErrMirror);
     CuCheck(cudaFree(gpuErr));
-    MPI_Finalize();
     
+    if (mypenoG==0)
+    {
+        Result result;
+        result.avgStepTime = elapsedTime/input.numSteps;
+        std::ofstream myfile;
+        myfile.open(outfile.c_str());
+        myfile << "{\n";
+        myfile << "    \"optLevel\": " << ((OPTL>0)?("\"opt\""):("\"dbg\"")) << ",\n";
+        myfile << "    \"cpuKernel\": \"" << GetCpuKernelDescription() << "\",\n";
+        myfile << "    \"gpuKernel\": \"" << GetGpuKernelDescription() << "\",\n";
+        myfile << "    \"pass\": " << ((pass)?("true"):("false")) << ",\n";
+        input.WriteJson(myfile);
+        result.WriteJson(myfile);
+        myfile << "}";
+        myfile.close();
+    }
+    
+    MPI_Finalize();
+    return pass?0:187;
 }

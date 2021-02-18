@@ -5,6 +5,7 @@
 #include "Glob.h"
 #include <string>
 void InitCpu(double* flow, double* err, const InputClass& input);
-void Output(double* flow, const InputClass& input, int lb, std::string filename);
+bool Output(double* flow, const InputClass& input, int lb, std::string filename);
 void ConvCpu(double* flow, double* err, const InputClass& input);
+std::string GetCpuKernelDescription(void);
 #endif

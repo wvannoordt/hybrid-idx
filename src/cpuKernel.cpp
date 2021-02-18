@@ -247,7 +247,7 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
     }
 }
 
-void Output(double* flow, const InputClass& input, int lb, std::string filename)
+bool Output(double* flow, const InputClass& input, int lb, std::string filename)
 {
     int imin = -input.nguard;
     int imax = (input.nxb[0] + input.nguard)+1;
@@ -330,4 +330,36 @@ void Output(double* flow, const InputClass& input, int lb, std::string filename)
         v++;
     }
     myfile.close();
+    if (mypenoG==0) std::cout << "Evaluate Error: ";
+    imin = 0;
+    imax = input.nxb[0]+1;
+    jmin = 0;
+    jmax = input.nxb[1]+1;
+    kmin = 0;
+    kmax = IS3D*(input.nxb[1+IS3D]) + 1;
+    
+    double accerr = 0.0;
+    double emax = -1.0;
+    for (int k = kmin; k < kmax; k++)
+    {
+        for (int j = jmin; j < jmax; j++)
+        {
+            for (int i = imin; i < imax; i++)
+            {
+                double f = flow[bidx(v, i, j, k, lb, input)];
+                double fa = d_abs(f);
+                accerr += sqr(f);
+                emax = (fa>emax)?fa:emax;
+            }
+        }
+    }
+    accerr = sqrt(accerr);
+    accerr /= (kmax-kmin)*(jmax-jmin)*(imax-imin);
+    if (mypenoG==0) std::cout << log(accerr) << "/" << log(emax) << "(" << (( (log(accerr)<-4) && (log(emax)<1))?("pass"):("fail")) << ")" << std::endl;
+    return accerr<1e-6;
+}
+
+std::string GetCpuKernelDescription(void)
+{
+    return "Baseline";
 }

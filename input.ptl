@@ -1,11 +1,11 @@
-#define numCell 32
-centOrder    = 6
-nxb          = [$(numCell), $(numCell), $(numCell)]
-lnblocks     = 10
+centOrder    = $(ord)
+nxb          = [$(num), $(num), $(num)]
+lnblocks     = 5
 nguard       = 4
-numSteps     = 100
+numSteps     = 10
 Rgas         = 287.0
 gamma        = 1.4
-device       = gpu
+device       = $(dev)
 outputGuards = false
 outputError  = true
+resultFile   = $(outfile)

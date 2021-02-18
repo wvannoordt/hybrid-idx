@@ -299,6 +299,9 @@ void ConvGpu(double* flow, double* err, const InputClass& input)
         CuCheck(cudaPeekAtLastError());
     }
     CuCheck(cudaDeviceSynchronize());
+}
 
-
+std::string GetGpuKernelDescription(void)
+{
+    return "Baseline";
 }
