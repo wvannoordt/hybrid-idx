@@ -75,6 +75,9 @@ void InitCpu(double* flow, double* err, const InputClass& input)
 #define fg_CubeSplit(q,j,l,v1,v2,v3) (0.125*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))])*(q[stencilIdx((v3),(j))] + q[stencilIdx((v3),(j)+(l))]))
 #define fg_DivSplit(q,j,l,v1,v2)     (0.500*((q[stencilIdx((v1),(j)+(l))]*q[stencilIdx((v2),(j))]) + (q[stencilIdx((v1),(j))]*q[stencilIdx((v2),(j)+(l))])))
 
+
+
+
 void ConvCpu(double* flow, double* err, const InputClass& input)
 {
     double centerCoef[4] = {0.0};
@@ -356,7 +359,7 @@ bool Output(double* flow, const InputClass& input, int lb, std::string filename)
     accerr = sqrt(accerr);
     accerr /= (kmax-kmin)*(jmax-jmin)*(imax-imin);
     if (mypenoG==0) std::cout << log(accerr) << "/" << log(emax) << "(" << (( (log(accerr)<-4) && (log(emax)<1))?("pass"):("fail")) << ")" << std::endl;
-    return accerr<1e-6;
+    return ((log(accerr)<-4) && (log(emax)<1));
 }
 
 std::string GetCpuKernelDescription(void)

@@ -1,2 +1,1 @@
-cmd: 'make'
-#cmd: 'make run'
+cmd: 'make run'

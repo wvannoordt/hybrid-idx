@@ -13,6 +13,18 @@
 #include "Result.h"
 #include <chrono>
 
+bool HasEnding(std::string const &fullString, std::string const &ending)
+{
+    if (fullString.length() >= ending.length())
+    {
+        return (0 == fullString.compare (fullString.length() - ending.length(), ending.length(), ending));
+    }
+    else
+    {
+        return false;
+    }
+}
+
 #ifndef OPTL
 #define OPTL 0
 #endif
@@ -21,6 +33,17 @@ InputClass input;
 
 int main(int argc, char** argv)
 {
+    std::string inputfile = "input.ptl";
+    
+    for (int i = 0; i < argc; i++)
+    {
+        std::string argStr(argv[i]);
+        if (HasEnding(argStr, ".ptl"))
+        {
+            inputfile = argStr;
+        }
+    }
+    
     MPI_Init(&argc, &argv);
     int mypeno, noprocs;
     MPI_Comm_rank(MPI_COMM_WORLD, &mypeno);
@@ -43,7 +66,7 @@ int main(int argc, char** argv)
     ptree["outputError"].MapTo(&input.outputError) = new PTL::PTLBoolean(false, "Output the error file");
     ptree["resultFile"].MapTo(&outfile) = new PTL::PTLString("output/default.json", "Output the error file");
     
-    ptree.Read("input.ptl");
+    ptree.Read(inputfile);
     ptree.StrictParse();
     mypenoG = mypeno;
     hasPrintedGp = false;
