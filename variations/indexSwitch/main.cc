@@ -12,7 +12,6 @@
 #include "CuErr.h"
 #include "Result.h"
 #include <chrono>
-#include "FlowArr.h"
 
 bool HasEnding(std::string const &fullString, std::string const &ending)
 {
@@ -45,10 +44,10 @@ int main(int argc, char** argv)
         }
     }
     
-    // MPI_Init(&argc, &argv);
+    MPI_Init(&argc, &argv);
     int mypeno, noprocs;
-    // MPI_Comm_rank(MPI_COMM_WORLD, &mypeno);
-    // MPI_Comm_size(MPI_COMM_WORLD, &noprocs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mypeno);
+    MPI_Comm_size(MPI_COMM_WORLD, &noprocs);
     int* nxbTmp;
     double* boundsTmp;
     std::string outfile;
@@ -66,8 +65,7 @@ int main(int argc, char** argv)
     ptree["outputGuards"].MapTo(&input.outputGuards) = new PTL::PTLBoolean(false, "Output the guards");
     ptree["outputError"].MapTo(&input.outputError) = new PTL::PTLBoolean(false, "Output the error file");
     ptree["resultFile"].MapTo(&outfile) = new PTL::PTLString("output/default.json", "Output the error file");
-    mypeno = 0;
-    bool isGpu = (input.dev == device::gpu);
+    
     ptree.Read(inputfile);
     ptree.StrictParse();
     mypenoG = mypeno;
@@ -78,8 +76,8 @@ int main(int argc, char** argv)
         input.bounds[2*i+1] = boundsTmp[2*i+1];
         input.nxb[i] = nxbTmp[i];
     }
-    // std::cout << "Hello from " << mypeno << " of " << noprocs << std::endl;
-    // MPI_Barrier(MPI_COMM_WORLD);
+    std::cout << "Hello from " << mypeno << " of " << noprocs << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
     
     size_t blockSize = 1;
     for (int i = 0; i < DIM; i++) blockSize*=(2*input.nguard + input.nxb[i]);
@@ -87,32 +85,25 @@ int main(int argc, char** argv)
     if (mypeno == 0) std::cout << totalSize << " (bytes)" << std::endl;
     if (mypeno == 0) std::cout << totalSize/sizeof(double) << " (elements)" << std::endl;
     if (mypeno == 0) std::cout << totalSize/(sizeof(double)*(2+DIM)) << " (cells)" << std::endl;
-    FlowArr cpuFlow(2+DIM, input.nxb[0], input.nxb[1], 1-IS3D+IS3D*input.nxb[DIM-1], input.lnblocks, input.nguard, input.nguard, input.nguard, device::cpu);
+    double* cpuFlow = (double*)malloc(totalSize);
     double* gpuFlow = 0;
-    if (isGpu)
-    {
-        CuCheck(cudaMalloc((void**)(&gpuFlow), totalSize));
-    }
+    CuCheck(cudaMalloc((void**)(&gpuFlow), totalSize));
     
-    FlowArr cpuErr(2+DIM, input.nxb[0], input.nxb[1], 1-IS3D+IS3D*input.nxb[DIM-1], input.lnblocks, input.nguard, input.nguard, input.nguard, device::cpu);
+    double* cpuErr = (double*)malloc(totalSize);
     double* gpuErr = 0;
-    double* gpuErrMirror = 0;
-    if (isGpu)
-    {
-        gpuErrMirror = (double*)malloc(totalSize);
-        CuCheck(cudaMalloc((void**)(&gpuErr), totalSize));
-    }
+    double* gpuErrMirror = (double*)malloc(totalSize);
+    CuCheck(cudaMalloc((void**)(&gpuErr), totalSize));
     
-    InitCpu(cpuFlow.data, cpuErr.data, input);
-    if (isGpu) InitGpu(gpuFlow, gpuErr, input);
+    InitCpu(cpuFlow, cpuErr, input);
+    InitGpu(gpuFlow, gpuErr, input);
     int numZer = std::to_string(input.numSteps-1).length();
     double elapsedTime = 0.0;
     for (int nt = 0; nt < input.numSteps; nt++)
     {
         auto start = std::chrono::high_resolution_clock::now();
         if (input.dev == device::gpu) {ConvGpu(gpuFlow, gpuErr, input);}
-        else {ConvCpu(cpuFlow.data, cpuErr.data, input);}
-        // MPI_Barrier(MPI_COMM_WORLD);
+        else {ConvCpu(cpuFlow, cpuErr, input);}
+        MPI_Barrier(MPI_COMM_WORLD);
         
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
@@ -121,14 +112,14 @@ int main(int argc, char** argv)
         if (mypenoG == 0) std::cout << ("nt: " + zfill(nt, numZer) + "/" + zfill(input.numSteps-1, numZer) + " time: " + std::to_string(timeMS) + " ms") << std::endl;
     }
     bool pass = false;
-    // MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     if (mypenoG == 0)
     {
         std::cout << "Average timestep: " + std::to_string(elapsedTime/input.numSteps) + " ms" << std::endl;
     }
     if ((input.dev == device::cpu) && (mypenoG==0) && input.outputError)
     {
-        pass = Output(cpuErr.data, input, 0, "output/cpu.vtk");
+        pass = Output(cpuErr, input, 0, "output/cpu.vtk");
     }
     if ((input.dev == device::gpu) && (mypenoG==0) && input.outputError)
     {
@@ -136,12 +127,11 @@ int main(int argc, char** argv)
         pass = Output(gpuErrMirror, input, 0, "output/gpu.vtk");
     }
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
-    if (isGpu)
-    {
-        CuCheck(cudaFree(gpuFlow));
-        free(gpuErrMirror);
-        CuCheck(cudaFree(gpuErr));
-    }
+    free(cpuFlow);
+    CuCheck(cudaFree(gpuFlow));
+    free(cpuErr);
+    free(gpuErrMirror);
+    CuCheck(cudaFree(gpuErr));
     
     if (mypenoG==0)
     {
@@ -160,6 +150,6 @@ int main(int argc, char** argv)
         myfile.close();
     }
     
-    // MPI_Finalize();
+    MPI_Finalize();
     return pass?0:187;
 }

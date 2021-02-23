@@ -1,12 +1,12 @@
-#define num 32
-centOrder    = 4
+#define num 128
+centOrder    = 8
 nxb          = [$(num), $(num), $(num)]
-lnblocks     = 5
+lnblocks     = 1
 nguard       = 4
-numSteps     = 10
+numSteps     = 2
 Rgas         = 287.0
 gamma        = 1.4
-device       = cpu
+device       = gpu
 outputGuards = false
-outputError  = true
+outputError  = false
 resultFile   = output/debugOut.json
