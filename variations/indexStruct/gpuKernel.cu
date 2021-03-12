@@ -3,7 +3,7 @@
 #include "mms.h"
 #include "CuErr.h"
 #include <iostream>
-__global__ void K_Init(double* flow, double* err, const InputClass input, const int lb)
+__global__ void K_Init(FlowArr flow, FlowArr err, const InputClass input, const int lb)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x - input.nguard;
     int j = threadIdx.y + blockIdx.y*blockDim.y - input.nguard;
@@ -44,24 +44,24 @@ __global__ void K_Init(double* flow, double* err, const InputClass input, const 
         vvel_mms(vvel, xyz[0], xyz[1], xyz[2]);
         wvel_mms(wvel, xyz[0], xyz[1], xyz[2]);
 
-        flow[bidx(0, i, j, k, lb, input)] = pres[0];
-        flow[bidx(1, i, j, k, lb, input)] = dens[0];
-        flow[bidx(2, i, j, k, lb, input)] = uvel[0];
-        flow[bidx(3, i, j, k, lb, input)] = vvel[0];
+        flow(0, i, j, k, lb) = pres[0];
+        flow(1, i, j, k, lb) = dens[0];
+        flow(2, i, j, k, lb) = uvel[0];
+        flow(3, i, j, k, lb) = vvel[0];
 #if(IS3D)
-        flow[bidx(4, i, j, k, lb, input)] = wvel[0];
+        flow(4, i, j, k, lb) = wvel[0];
 #endif
-        err[bidx(0, i, j, k, lb, input)] = 0.0;
-        err[bidx(1, i, j, k, lb, input)] = 0.0;
-        err[bidx(2, i, j, k, lb, input)] = 0.0;
-        err[bidx(3, i, j, k, lb, input)] = 0.0;
+        err(0, i, j, k, lb) = 0.0;
+        err(1, i, j, k, lb) = 0.0;
+        err(2, i, j, k, lb) = 0.0;
+        err(3, i, j, k, lb) = 0.0;
 #if(IS3D)
-        err[bidx(4, i, j, k, lb, input)] = 0.0;
+        err(4, i, j, k, lb) = 0.0;
 #endif
     }
 }
 
-void InitGpu(double* flow, double* err, const InputClass& input)
+void InitGpu(FlowArr& flow, FlowArr& err, const InputClass& input)
 {
     //Global memory:            7.907288 GB
     //Shared memory per block:  48.000000 KB
@@ -112,7 +112,7 @@ void InitGpu(double* flow, double* err, const InputClass& input)
 #define fg_CubeSplit(q,j,l,v1,v2,v3) (0.125*(q[stencilIdx((v1),(j))] + q[stencilIdx((v1),(j)+(l))])*(q[stencilIdx((v2),(j))] + q[stencilIdx((v2),(j)+(l))])*(q[stencilIdx((v3),(j))] + q[stencilIdx((v3),(j)+(l))]))
 #define fg_DivSplit(q,j,l,v1,v2)     (0.500*((q[stencilIdx((v1),(j)+(l))]*q[stencilIdx((v2),(j))]) + (q[stencilIdx((v1),(j))]*q[stencilIdx((v2),(j)+(l))])))
 
-__global__ void K_Conv(double* flow, double* err, const InputClass input, const int lb, const Coef_t center, int stencilWid)
+__global__ void K_Conv(FlowArr flow, FlowArr err, const InputClass input, const int lb, const Coef_t center, int stencilWid)
 {
     int i = threadIdx.x + blockIdx.x*blockDim.x;
     int j = threadIdx.y + blockIdx.y*blockDim.y;
@@ -153,8 +153,7 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
                     int ii = i+dijk[0]*(n-stencilWid);
                     int jj = j+dijk[1]*(n-stencilWid);
                     int kk = k+dijk[2]*(n-stencilWid);
-                    int h = bidx(v-3, ii, jj, kk, lb, input);
-                    stencilData[stencilIdx(v,n)] = flow[h];
+                    stencilData[stencilIdx(v,n)] = flow(v-3, ii, jj, kk, lb);
                 }
                 // T
                 stencilData[stencilIdx(2,n)] = stencilData[stencilIdx(3,n)]/(input.Rgas*stencilData[stencilIdx(4,n)]);
@@ -237,12 +236,12 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
             {
                 rhs[2+rhs_vel_comp] -= invdx[idir]*(M[rhs_vel_comp] - M[rhs_vel_comp+DIM]);
             }
-            err[bidx(0, i, j, k, lb, input)] += rhs[0] - rhsExact[0]/DIM;
-            err[bidx(1, i, j, k, lb, input)] += rhs[1] - rhsExact[1]/DIM;
-            err[bidx(2, i, j, k, lb, input)] += rhs[2] - rhsExact[2]/DIM;
-            err[bidx(3, i, j, k, lb, input)] += rhs[3] - rhsExact[3]/DIM;
+            err(0, i, j, k, lb) = err(0, i, j, k, lb) + (rhs[0] - rhsExact[0]/DIM);
+            err(1, i, j, k, lb) = err(1, i, j, k, lb) + (rhs[1] - rhsExact[1]/DIM);
+            err(2, i, j, k, lb) = err(2, i, j, k, lb) + (rhs[2] - rhsExact[2]/DIM);
+            err(3, i, j, k, lb) = err(3, i, j, k, lb) + (rhs[3] - rhsExact[3]/DIM);
 #if(IS3D)
-            err[bidx(4, i, j, k, lb, input)] += rhs[4] - rhsExact[4]/DIM;
+            err(4, i, j, k, lb) = err(4, i, j, k, lb) + (rhs[4] - rhsExact[4]/DIM);
 #endif
 
             dijk[idir] = 0;
@@ -250,13 +249,13 @@ __global__ void K_Conv(double* flow, double* err, const InputClass input, const 
     }
 }
 
-void GCopy(double* cTarget, double* gTarget, size_t size)
+void GCopy(FlowArr& cTarget, FlowArr& gTarget, size_t size)
 {
-    CuCheck(cudaMemcpy(cTarget, gTarget, size, cudaMemcpyDeviceToHost));
+    CuCheck(cudaMemcpy(cTarget.data, gTarget.data, size, cudaMemcpyDeviceToHost));
     //need to transpose here too!
 }
 
-void ConvGpu(double* flow, double* err, const InputClass& input)
+void ConvGpu(FlowArr& flow, FlowArr& err, const InputClass& input)
 {
     dim3 blockConf;
     blockConf.x = BLOCK_SIZEX;

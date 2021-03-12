@@ -88,19 +88,23 @@ int main(int argc, char** argv)
     if (mypeno == 0) std::cout << totalSize/sizeof(double) << " (elements)" << std::endl;
     if (mypeno == 0) std::cout << totalSize/(sizeof(double)*(2+DIM)) << " (cells)" << std::endl;
     FlowArr cpuFlow(2+DIM, input.nxb[0], input.nxb[1], 1-IS3D+IS3D*input.nxb[DIM-1], input.lnblocks, input.nguard, input.nguard, input.nguard, device::cpu);
-    double* gpuFlow = 0;
+    cpuFlow.Alloc(input.lnblocks);
+    FlowArr gpuFlow(2+DIM, input.nxb[0], input.nxb[1], 1-IS3D+IS3D*input.nxb[DIM-1], input.lnblocks, input.nguard, input.nguard, input.nguard, device::gpu);
     if (isGpu)
     {
-        CuCheck(cudaMalloc((void**)(&gpuFlow), totalSize));
+        gpuFlow.Alloc(input.lnblocks);
+        CuCheck(cudaMalloc((void**)(&gpuFlow.data), gpuFlow.totalSize));
     }
     
     FlowArr cpuErr(2+DIM, input.nxb[0], input.nxb[1], 1-IS3D+IS3D*input.nxb[DIM-1], input.lnblocks, input.nguard, input.nguard, input.nguard, device::cpu);
-    double* gpuErr = 0;
-    double* gpuErrMirror = 0;
+    cpuErr.Alloc(input.lnblocks);
+    FlowArr gpuErr(2+DIM, input.nxb[0], input.nxb[1], 1-IS3D+IS3D*input.nxb[DIM-1], input.lnblocks, input.nguard, input.nguard, input.nguard, device::gpu);
+    FlowArr gpuErrMirror(2+DIM, input.nxb[0], input.nxb[1], 1-IS3D+IS3D*input.nxb[DIM-1], input.lnblocks, input.nguard, input.nguard, input.nguard, device::cpu);
     if (isGpu)
     {
-        gpuErrMirror = (double*)malloc(totalSize);
-        CuCheck(cudaMalloc((void**)(&gpuErr), totalSize));
+        gpuErr.Alloc(input.lnblocks);
+        CuCheck(cudaMalloc((void**)(&gpuErr.data), gpuErr.totalSize));
+        gpuErrMirror.Alloc(input.lnblocks);
     }
     
     InitCpu(cpuFlow, cpuErr, input);
@@ -132,16 +136,10 @@ int main(int argc, char** argv)
     }
     if ((input.dev == device::gpu) && (mypenoG==0) && input.outputError)
     {
-        // GCopy(gpuErrMirror, gpuErr, totalSize);
-        // pass = Output(gpuErrMirror, input, 0, "output/gpu.vtk");
+        GCopy(gpuErrMirror, gpuErr, totalSize);
+        pass = Output(gpuErrMirror, input, 0, "output/gpu.vtk");
     }
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
-    if (isGpu)
-    {
-        CuCheck(cudaFree(gpuFlow));
-        free(gpuErrMirror);
-        CuCheck(cudaFree(gpuErr));
-    }
     
     if (mypenoG==0)
     {

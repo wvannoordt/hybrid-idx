@@ -4,12 +4,13 @@
 #include "Config.h"
 #include "Glob.h"
 #include <string>
+#include "FlowArr.h"
 struct Coef_t
 {
     double c[4];
 };
-void InitGpu(double* flow, double* err, const InputClass& input);
-void ConvGpu(double* flow, double* err, const InputClass& input);
-void GCopy(double* cTarget, double* gTarget, size_t size);
+void InitGpu(FlowArr& flow, FlowArr& err, const InputClass& input);
+void ConvGpu(FlowArr& flow, FlowArr& err, const InputClass& input);
+void GCopy(FlowArr& cTarget, FlowArr& gTarget, size_t size);
 std::string GetGpuKernelDescription(void);
 #endif
