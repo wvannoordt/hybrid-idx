@@ -4,8 +4,9 @@
 #include "Config.h"
 #include "Glob.h"
 #include <string>
-void InitCpu(double* flow, double* err, const InputClass& input);
-bool Output(double* flow, const InputClass& input, int lb, std::string filename);
-void ConvCpu(double* flow, double* err, const InputClass& input);
+#include "FlowArr.h"
+void InitCpu(FlowArr& flow, FlowArr& err, const InputClass& input);
+bool Output(FlowArr& flow, const InputClass& input, int lb, std::string filename);
+void ConvCpu(FlowArr& flow, FlowArr& err, const InputClass& input);
 std::string GetCpuKernelDescription(void);
 #endif

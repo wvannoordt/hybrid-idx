@@ -6,7 +6,7 @@
 #include <vector>
 #include <cmath>
 #include "mms.h"
-void InitCpu(double* flow, double* err, const InputClass& input)
+void InitCpu(FlowArr& flow, FlowArr& err, const InputClass& input)
 {
     int imin = -input.nguard;
     int imax = (input.nxb[0] + input.nguard);
@@ -48,19 +48,19 @@ void InitCpu(double* flow, double* err, const InputClass& input)
                     
                     
                     
-                    flow[bidx(0, i, j, k, lb, input)] = pres[0];
-                    flow[bidx(1, i, j, k, lb, input)] = dens[0];
-                    flow[bidx(2, i, j, k, lb, input)] = uvel[0];
-                    flow[bidx(3, i, j, k, lb, input)] = vvel[0];
+                    flow(0, i, j, k, lb) = pres[0];
+                    flow(1, i, j, k, lb) = dens[0];
+                    flow(2, i, j, k, lb) = uvel[0];
+                    flow(3, i, j, k, lb) = vvel[0];
 #if(IS3D)
-                    flow[bidx(4, i, j, k, lb, input)] = wvel[0];
+                    flow(4, i, j, k, lb) = wvel[0];
 #endif
-                    err[bidx(0, i, j, k, lb, input)] = 0.0;
-                    err[bidx(1, i, j, k, lb, input)] = 0.0;
-                    err[bidx(2, i, j, k, lb, input)] = 0.0;
-                    err[bidx(3, i, j, k, lb, input)] = 0.0;
+                    err(0, i, j, k, lb) = 0.0;
+                    err(1, i, j, k, lb) = 0.0;
+                    err(2, i, j, k, lb) = 0.0;
+                    err(3, i, j, k, lb) = 0.0;
 #if(IS3D)
-                    err[bidx(4, i, j, k, lb, input)] = 0.0;
+                    err(4, i, j, k, lb) = 0.0;
 #endif
                 }
             }
@@ -78,7 +78,7 @@ void InitCpu(double* flow, double* err, const InputClass& input)
 
 
 
-void ConvCpu(double* flow, double* err, const InputClass& input)
+void ConvCpu(FlowArr& flow, FlowArr& err, const InputClass& input)
 {
     double centerCoef[4] = {0.0};
     switch (input.centOrder)
@@ -151,8 +151,7 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
                                 int ii = i+dijk[0]*(n-stencilWid);
                                 int jj = j+dijk[1]*(n-stencilWid);
                                 int kk = k+dijk[2]*(n-stencilWid);
-                                int h = bidx(v-3, ii, jj, kk, lb, input);
-                                stencilData[stencilIdx(v,n)] = flow[h];
+                                stencilData[stencilIdx(v,n)] = flow(v-3, ii, jj, kk, lb);
                             }
                             // T
                             stencilData[stencilIdx(2,n)] = stencilData[stencilIdx(3,n)]/(input.Rgas*stencilData[stencilIdx(4,n)]);
@@ -235,12 +234,12 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
                         {
                             rhs[2+rhs_vel_comp] -= invdx[idir]*(M[rhs_vel_comp] - M[rhs_vel_comp+DIM]);
                         }
-                        err[bidx(0, i, j, k, lb, input)] += rhs[0] - rhsExact[0]/DIM;
-                        err[bidx(1, i, j, k, lb, input)] += rhs[1] - rhsExact[1]/DIM;
-                        err[bidx(2, i, j, k, lb, input)] += rhs[2] - rhsExact[2]/DIM;
-                        err[bidx(3, i, j, k, lb, input)] += rhs[3] - rhsExact[3]/DIM;
+                        err(0, i, j, k, lb) += rhs[0] - rhsExact[0]/DIM;
+                        err(1, i, j, k, lb) += rhs[1] - rhsExact[1]/DIM;
+                        err(2, i, j, k, lb) += rhs[2] - rhsExact[2]/DIM;
+                        err(3, i, j, k, lb) += rhs[3] - rhsExact[3]/DIM;
 #if(IS3D)
-                        err[bidx(4, i, j, k, lb, input)] += rhs[4] - rhsExact[4]/DIM;
+                        err(4, i, j, k, lb) += rhs[4] - rhsExact[4]/DIM;
 #endif
                     }
                 }
@@ -250,7 +249,7 @@ void ConvCpu(double* flow, double* err, const InputClass& input)
     }
 }
 
-bool Output(double* flow, const InputClass& input, int lb, std::string filename)
+bool Output(FlowArr& flow, const InputClass& input, int lb, std::string filename)
 {
     int imin = -input.nguard;
     int imax = (input.nxb[0] + input.nguard)+1;
@@ -326,7 +325,7 @@ bool Output(double* flow, const InputClass& input, int lb, std::string filename)
                 for (int i = imin; i < imax; i++)
                 {
                     ijk[0] = i;
-                    myfile << flow[bidx(v, i, j, k, lb, input)] << std::endl;
+                    myfile << flow(v, i, j, k, lb) << std::endl;
                 }
             }
         }
@@ -349,7 +348,7 @@ bool Output(double* flow, const InputClass& input, int lb, std::string filename)
         {
             for (int i = imin; i < imax; i++)
             {
-                double f = flow[bidx(v, i, j, k, lb, input)];
+                double f = flow(v, i, j, k, lb);
                 double fa = d_abs(f);
                 accerr += sqr(f);
                 emax = (fa>emax)?fa:emax;

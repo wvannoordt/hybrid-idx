@@ -103,7 +103,7 @@ int main(int argc, char** argv)
         CuCheck(cudaMalloc((void**)(&gpuErr), totalSize));
     }
     
-    InitCpu(cpuFlow.data, cpuErr.data, input);
+    InitCpu(cpuFlow, cpuErr, input);
     if (isGpu) InitGpu(gpuFlow, gpuErr, input);
     int numZer = std::to_string(input.numSteps-1).length();
     double elapsedTime = 0.0;
@@ -111,7 +111,7 @@ int main(int argc, char** argv)
     {
         auto start = std::chrono::high_resolution_clock::now();
         if (input.dev == device::gpu) {ConvGpu(gpuFlow, gpuErr, input);}
-        else {ConvCpu(cpuFlow.data, cpuErr.data, input);}
+        else {ConvCpu(cpuFlow, cpuErr, input);}
         // MPI_Barrier(MPI_COMM_WORLD);
         
         auto finish = std::chrono::high_resolution_clock::now();
@@ -128,12 +128,12 @@ int main(int argc, char** argv)
     }
     if ((input.dev == device::cpu) && (mypenoG==0) && input.outputError)
     {
-        pass = Output(cpuErr.data, input, 0, "output/cpu.vtk");
+        pass = Output(cpuErr, input, 0, "output/cpu.vtk");
     }
     if ((input.dev == device::gpu) && (mypenoG==0) && input.outputError)
     {
-        GCopy(gpuErrMirror, gpuErr, totalSize);
-        pass = Output(gpuErrMirror, input, 0, "output/gpu.vtk");
+        // GCopy(gpuErrMirror, gpuErr, totalSize);
+        // pass = Output(gpuErrMirror, input, 0, "output/gpu.vtk");
     }
     if (mypeno == 0) std::cout << "Cleaning up" << std::endl;
     if (isGpu)
