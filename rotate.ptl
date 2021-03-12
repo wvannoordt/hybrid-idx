@@ -1,5 +1,4 @@
-#define num 32
-centOrder    = 8
+centOrder    = $(ord)
 nxb          = [$(num), $(num), $(num)]
 lnblocks     = 1
 nguard       = 4

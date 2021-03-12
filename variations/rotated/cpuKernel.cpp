@@ -361,7 +361,7 @@ bool Output(double* flow, const InputClass& input, int lb, std::string filename)
     if (mypenoG==0) std::cout << log(accerr) << "/" << log(emax) << "(" << (( (log(accerr)<-4) && (log(emax)<1))?("pass"):("fail")) << ")" << std::endl;
     std::ofstream mf;
     mf.open(".erout");
-    mf << input.centOrder << ", " << input.nxb[0] << ", " << log(accerr) << ", " << log(emax) << std::endl;
+    mf << input.centOrder << ", " << input.nxb[0] << ", " << log(accerr) << ", " << log(emax) << ", " << accerr << ", " << emax << std::endl;
     mf.close();
     return ((log(accerr)<-4) && (log(emax)<1));
 }

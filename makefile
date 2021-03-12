@@ -1,4 +1,4 @@
-VARIANT := indexSwitch
+VARIANT := indexStruct
 EXE := program
 EXETYPE := opt
 NUMPROCS := 1
